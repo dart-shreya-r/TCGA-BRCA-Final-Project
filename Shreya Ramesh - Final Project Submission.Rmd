@@ -1,0 +1,333 @@
+---
+title: "ShreyaRamesh-FinalProjectCheckIn"
+output: pdf_document
+---
+```{r}
+#Set default figure dimensions and formatting
+knitr::opts_chunk$set(
+  fig.width = 10,
+  fig.height = 6,
+  out.width = "100%",
+  warning = FALSE,
+  message = FALSE
+)
+```
+
+## Load packages and datasets
+
+```{r}
+#Load packages
+library(ggplot2)
+library(ComplexHeatmap)
+
+# Record R version and package versions
+R.version.string
+
+packageVersion("ggplot2")
+packageVersion("ComplexHeatmap")
+packageVersion("knitr")
+
+#Load datasets
+counts <- read.csv("counts.csv", row.name = 1)
+metadata <- read.csv("meta_data.csv")
+
+#Check & View
+dim(counts)
+dim(metadata)
+
+```
+
+## Gene Selection and Summary Statistics
+
+
+```{r}
+#Select TP53 and BRCA1 as the project's genes
+tp53 <- as.numeric(counts["ENSG00000141510.18", ])
+brca1 <- as.numeric(counts["ENSG00000012048.23", ])
+
+#Calculate summary statistics for both genes
+gene_stats <- data.frame(
+  Gene = c("TP53", "BRCA1"),
+  Mean = c(mean(tp53), mean(brca1)),
+  Median = c(median(tp53), median(brca1)),
+  Standard_Deviation = c(sd(tp53), sd(brca1)),
+  Minimum = c(min(tp53),min(brca1)),
+  Maximum = c(max(tp53), max(brca1))
+)
+
+sample_type_summary <- as.data.frame(
+  table(metadata$definition)
+)
+
+names(sample_type_summary) <- c("Sample_Type", "Sample_Count")
+
+knitr::kable(
+  sample_type_summary,
+  caption = "Sample Counts by Sample Type"
+)
+#Round numeric columns
+gene_stats[, -1] <- round(gene_stats[, -1], 2)
+
+#Display table
+knitr::kable(
+  gene_stats,
+  caption = "Summary Statistics for TP53 and BRCA1 RNA-seq Counts"
+)
+```
+
+## Visualizations
+
+```{r}
+#Create a dataframe
+tp53_df <- data.frame(
+  TP53_Count = tp53
+)
+
+#Create a histogram
+ggplot(tp53_df, aes(x = TP53_Count)) +
+  geom_histogram(
+    bins = 30,
+    fill = "steelblue",
+    color = "white"
+    ) +
+  labs(
+    title = "Distribution of TP53 RNA-seq Counts",
+    x = "TP53 RNA-seq Count",
+    y = "Number of Samples (Frequency)"
+      ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    axis.title = element_text(size = 13),
+    axis.text = element_text(size = 11)
+  )
+ggsave(
+  "histogram.pdf",
+  width = 9,
+  height = 6
+)
+#Combine TP53 and BRCA1 counts
+scatter_df <- data.frame(
+  TP53 = tp53,
+  BRCA1 = brca1
+)
+#Calculate Pearson correlation between TP53 and BRCA1
+cor(tp53,brca1, method = "pearson")
+
+#Create a scatter plot
+ggplot(scatter_df, aes(x = TP53, y = BRCA1)) + 
+  geom_point(
+    alpha = 0.5,
+    size = 1.5,
+    color = "steelblue"
+  ) + 
+  geom_smooth(
+  method = "lm",
+  se = FALSE,
+  color = "darkred"
+) +
+  labs(
+  title = "TP53 vs BRCA1 RNA-seq Counts",
+  x = "TP53 RNA-seq Count",
+  y = "BRCA1 RNA-seq Count"
+) + 
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    axis.title = element_text(size = 13),
+    axis.text = element_text(size = 11)
+  )
+ggsave(
+  "scatter.pdf",
+  width = 9,
+  height = 6
+)
+#Create a violin plot
+tp53_samples <- data.frame(
+  barcode = gsub("\\.", "-", colnames(counts)),
+  TP53_Count = tp53
+)
+
+#Merge TP53 counts with the sample type metadata
+violin_data <- merge(
+  tp53_samples,
+  metadata[, c("barcode", "definition")], 
+  by = "barcode"
+)
+dim(violin_data)
+
+#Create a violin plot of TP53 counts by sample type
+ggplot(violin_data, aes(x = definition, y = TP53_Count)) +
+  geom_violin(
+    fill = "lightblue",
+    color = "black"
+  ) +
+  labs(
+    title = "TP53 RNA-seq Counts by Sample Type",
+    x = "Sample Type",
+    y = "TP53 RNA-seq Count"
+  ) + 
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    axis.text.x = element_text(
+      size = 11,
+      angle = 20,
+      hjust = 1
+    )
+  )
+ggsave(
+  "violin.pdf",
+  width = 9,
+  height = 6
+)
+#Create a box plot
+ggplot(violin_data, aes(x = definition, y = TP53_Count)) +
+  geom_boxplot(
+    fill = "lightblue",
+    color = "black",
+    outlier.alpha = 0.4
+  ) +
+  labs(
+    title = "TP53 RNA-seq Counts Across Sample Types",
+    x = "Sample Type",
+    y = "TP53 RNA-seq Count"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16),
+    axis.text.x = element_text(angle = 20, hjust = 1)
+  )
+ggsave(
+  "boxplot.pdf",
+  width = 9,
+  height = 6
+)
+#Create a density plot
+ggplot(
+  violin_data,
+  aes(
+    x = log2(TP53_Count + 1),
+    fill = definition,
+    color = definition
+  )
+) +
+  geom_density(alpha = 0.25) +
+  labs(
+    title = "Distribution of TP53 Counts Across Sample Types",
+    x = "log2(TP53 Count + 1)",
+    y = "Density",
+    fill = "Sample Type",
+    color = "Sample Type"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    plot.title = element_text(face = "bold", size = 16)
+  )
+ggsave(
+  "density.pdf",
+  width = 9,
+  height = 6
+)
+#Create a heatmap
+#Select 10 cancer-related genes
+selected_genes <- c(
+  "ENSG00000141510.18",  # TP53
+  "ENSG00000012048.23",  # BRCA1
+  "ENSG00000139618.16",  # BRCA2
+  "ENSG00000141736.14",  # ERBB2
+  "ENSG00000091831.24",  # ESR1
+  "ENSG00000146648.19",  # EGFR
+  "ENSG00000171862.11",  # PTEN
+  "ENSG00000136997.21",  # MYC
+  "ENSG00000133703.13",  # KRAS
+  "ENSG00000157764.14"   # BRAF
+)
+heatmap_data <- as.matrix(counts[selected_genes, ])
+#Rename rows
+rownames(heatmap_data) <- c(
+   "TP53",
+  "BRCA1",
+  "BRCA2",
+  "ERBB2",
+  "ESR1",
+  "EGFR",
+  "PTEN",
+  "MYC",
+  "KRAS",
+  "BRAF"
+)
+heatmap_log <- log2(heatmap_data + 1)
+
+#Add Annotation Bar
+metadata_ordered <- metadata[
+  match(
+    gsub("\\.", "-", colnames(heatmap_log)), 
+    metadata$barcode
+    ),
+]
+#Check avaliable metadata variables
+names(metadata)
+#Examine sample type distribution
+table(metadata$definition, useNA = "ifany")
+
+#Check for variables related to stage or subtype
+grep("stage|subtype", names(metadata),
+     value = TRUE, ignore.case = TRUE)
+#Check the number of missing values after matching
+sum(is.na(metadata_ordered$ajcc_pathologic_stage))
+#Review the stage categories
+table(metadata_ordered$ajcc_pathologic_stage,
+      useNA = "ifany")
+# Verify sample metadata alignment
+stopifnot(
+  identical(
+    gsub("\\.", "-", colnames(heatmap_log)),
+    metadata_ordered$barcode
+  )
+)
+sample_annotation <- HeatmapAnnotation(
+  Sample_Type = metadata_ordered$definition,
+  Pathologic_Stage = metadata_ordered$ajcc_pathologic_stage
+)
+#Generate the heatmap with the annotation
+Heatmap(
+  heatmap_log,
+  name = "log2(Count + 1)",
+  top_annotation = sample_annotation,
+  cluster_rows = TRUE,
+  cluster_columns = TRUE,
+  show_column_names = FALSE,
+  row_names_gp = grid::gpar(fontsize = 12),
+  row_names_side = "left",
+  column_title = "RNA-seq Count Patterns Across 10 Cancer-Related Genes",
+  column_title_gp = grid::gpar(fontsize = 14, fontface = "bold"),
+  heatmap_legend_param = list(
+    title_gp = grid::gpar(fontsize = 11),
+    labels_gp = grid::gpar(fontsize = 10)
+  )
+)
+pdf("heatmap.pdf", width = 12, height = 7)
+
+draw(
+  Heatmap(
+    heatmap_log,
+    name = "log2(Count + 1)",
+    top_annotation = sample_annotation,
+    cluster_rows = TRUE,
+    cluster_columns = TRUE,
+    show_column_names = FALSE,
+    row_names_gp = grid::gpar(fontsize = 12),
+    row_names_side = "left",
+    column_title = "RNA-seq Count Patterns Across 10 Cancer-Related Genes",
+    column_title_gp = grid::gpar(fontsize = 14, fontface = "bold"),
+    heatmap_legend_param = list(
+      title_gp = grid::gpar(fontsize = 11),
+      labels_gp = grid::gpar(fontsize = 10)
+    )
+  )
+)
+
+dev.off()
+getwd()
+```
